@@ -21,7 +21,7 @@ library(ggpubr)
 library(cowplot)
 library(DoubletFinder)
 
-####Fig.1c####
+#####heatmap###
 markers<-c("CD3E","CD3D","GZMB","NCAM1", "NKG7",
            "MS4A1","CD79A","CD79B","MZB1","CD19",
            "CD14","LYZ","CD68","CST3",'C1QC',
@@ -43,7 +43,7 @@ p <- AverageHeatmap(object = sce.sub1,
                     cluster_columns = FALSE)  
 p
 
-#####Fig.1d####
+#####inferCNV####
 dfcount = as.data.frame(CNV@assays$RNA@counts)
 
 groupinfo= data.frame(cellId = colnames(dfcount))
