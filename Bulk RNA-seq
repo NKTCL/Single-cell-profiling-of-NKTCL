@@ -1,0 +1,98 @@
+# Bulk RNA-seq survival analysis
+library(tidyverse)
+library(GSVA)
+library(GSEABase)
+library(readxl)
+library(survival)
+library(survminer)
+
+MP_list <- read.csv(
+  "data/MP_signature_genes.csv",
+  row.names = 1
+)
+
+gene_sets <- list(
+  MP1_signature = na.omit(MP_list$MP1),
+  MP2_signature = na.omit(MP_list$MP2),
+  MP3_signature = na.omit(MP_list$MP3),
+  MP4_signature = na.omit(MP_list$MP4)
+)
+
+expr_mat <- read.csv(
+  "data/bulk_expression_matrix.csv",
+  row.names = 1,
+  check.names = FALSE
+)
+
+expr_mat <- as.matrix(expr_mat)
+
+# Calculate MP signature scores for each sample
+gsva_scores <- gsva(
+  expr_mat,
+  gene_sets,
+  method = "gsva",
+  kcdf = "Gaussian",
+  abs.ranking = FALSE
+)
+
+MP_group <- apply(gsva_scores, 2, function(x) {
+  rownames(gsva_scores)[which.max(x)]
+})
+
+MP_group <- factor(
+  MP_group,
+  levels = c(
+    "MP1_signature",
+    "MP2_signature",
+    "MP3_signature",
+    "MP4_signature"
+  )
+)
+
+table(MP_group)
+
+# Load clinical survival data
+clinical <- read_xlsx(
+  "data/clinical_survival_data.xlsx"
+)
+
+clinical <- clinical %>%
+  filter(!is.na(id)) %>%
+  distinct(id, .keep_all = TRUE) %>%
+  column_to_rownames("id") %>%
+  select(PFS, PFS_status)
+
+# Add MP grouping
+clinical$MP_group <- MP_group[rownames(clinical)]
+
+clinical$PFS <- as.numeric(clinical$PFS)
+clinical$PFS_status <- as.numeric(clinical$PFS_status)
+
+# Survival analysis
+fit <- survfit(
+  Surv(PFS, PFS_status) ~ MP_group,
+  data = clinical
+)
+
+# Pairwise log-rank tests
+pairwise_results <- pairwise_survdiff(
+  Surv(PFS, PFS_status) ~ MP_group,
+  data = clinical
+)
+
+print(pairwise_results$p.value)
+
+# Kaplan–Meier visualization
+ggsurvplot(
+  fit,
+  data = clinical,
+  pval = TRUE,
+  xlim = c(0, 40),
+  size = 1.2,
+  palette = c("#b05545", "#405993", "#55a155", "#ff9933"),
+  legend.labs = c("MP1", "MP2", "MP3", "MP4"),
+  legend.title = "MP group",
+  xlab = "Time",
+  ylab = "Progression-free survival",
+  risk.table = FALSE
+)
