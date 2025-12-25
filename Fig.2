@@ -1,1 +1,33 @@
+####Fig 2a###
+library(ggplot2)
+library(reshape2)
+library(scales)
 
+nmf_intersect <- readRDS("Fig2_data/nmf_intersect_sorted.rds")
+
+nmf_intersect[nmf_intersect > 25] <- 25
+nmf_intersect[nmf_intersect < 2]  <- 2
+
+df <- melt(nmf_intersect)
+
+p <- ggplot(df, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(
+    limits = c(2, 25),
+    low = "#f7f7f7",
+    mid = "#fdae61",
+    high = "#5e3c99",
+    midpoint = 13.5,
+    oob = squish,
+    name = "Similarity\n(Jaccard index)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid = element_blank()
+  )
+print(p)
+
+###Fig2
