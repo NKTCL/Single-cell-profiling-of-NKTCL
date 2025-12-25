@@ -1,1 +1,99 @@
+####Monocle3####
+library(monocle3)
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(ggridges)
+library(cowplot)
+library(viridis)
+
+cds <- new_cell_data_set(
+  as(as.matrix(CD8T@assays$RNA@counts), "sparseMatrix"),
+  cell_metadata = as.data.frame(CD8T@meta.data),
+  gene_metadata = data.frame(
+    gene_short_name = rownames(CD8T),
+    row.names = rownames(CD8T)
+  )
+)
+
+cds <- preprocess_cds(cds, num_dim = 50)
+
+cds <- align_cds(
+  cds,
+  alignment_group = "orig.ident",
+  residual_model_formula_str = "~ Size_Factor"
+)
+
+cds <- reduce_dimension(cds, preprocess_method = "PCA")
+cds <- cluster_cells(cds, cluster_method = "louvain")
+
+
+cds_umap <- cds@int_colData$reducedDims$UMAP
+seurat_umap <- Embeddings(CD8T, reduction = "umap")
+seurat_umap <- seurat_umap[rownames(cds_umap), ]
+
+cds@int_colData$reducedDims$UMAP <- seurat_umap
+
+cds <- learn_graph(cds)
+cds <- order_cells(cds)
+
+plot_cells(
+  cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = FALSE,
+  label_cell_groups = FALSE,
+  label_leaves = FALSE,
+  label_branch_points = FALSE,
+  cell_size = 0.2
+)
+
+## ggplot-based UMAP with pseudotime
+cell_df <- as.data.frame(reducedDims(cds)$UMAP)
+colnames(cell_df) <- c("UMAP_1", "UMAP_2")
+cell_df$pseudotime <- pseudotime(cds)
+
+ggplot(cell_df, aes(UMAP_1, UMAP_2, color = pseudotime)) +
+  geom_point(size = 0.1) +
+  scale_color_viridis_c(option = "C") +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    plot.background = element_rect(fill = "transparent", colour = NA)
+  ) +
+  labs(color = "Pseudotime")
+
+## Ridge plot
+meta_df <- as.data.frame(colData(cds))
+meta_df$Pseudotime <- pseudotime(cds)
+meta_df <- meta_df[is.finite(meta_df$Pseudotime), ]
+
+meta_df$CD8T_type1 <- factor(
+  meta_df$CD8T_type1,
+  levels = c(
+    "CD8_C04_LAYN",
+    "CD8_C08_GZMA",
+    "CD8_C06_HSPA1A",
+    "CD8_C01_GZMK",
+    "CD8_C02_CCR7",
+    "CD8_C05_S1PR1",
+    "CD8_C09_KLRB1",
+    "CD8_C07_MKI67",
+    "CD8_C03_IL7R",
+    "CD8_C10_CD69"
+  )
+)
+
+ggplot(meta_df, aes(x = Pseudotime, y = CD8T_type1, fill = CD8T_type1)) +
+  geom_density_ridges(scale = 1.2, alpha = 0.9) +
+  scale_fill_manual(values = CD8Tcol) +
+  theme_ridges() +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(size = 11, face = "bold")
+  )
 
